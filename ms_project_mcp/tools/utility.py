@@ -18,8 +18,17 @@ def register(mcp) -> None:
         """Undo the last N operations in Microsoft Project (default 1; up to the
         configured undo levels). COM undo is less reliable than the UI — use sparingly."""
         def job(app, proj):
-            app.Undo(int(count))
-            return {"undone": int(count)}
+            try:
+                app.Undo(int(count))
+            except Exception as exc:  # noqa: BLE001
+                # Project raises "method is not available in this situation" when the
+                # undo stack is empty — e.g. right after a save or after changing the
+                # undo levels (both clear history). Report it softly, don't crash.
+                return {"undone": 0, "available": False,
+                        "note": "Nothing to undo (the undo history may have been "
+                                "cleared by a save or by changing undo levels).",
+                        "detail": str(exc)}
+            return {"undone": int(count), "available": True}
         return with_project(job, create=False)
 
     @mcp.tool()

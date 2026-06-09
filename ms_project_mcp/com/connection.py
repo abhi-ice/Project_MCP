@@ -124,6 +124,16 @@ class _ComWorker:
             self._app.Visible = visible
         except Exception:
             pass
+        # Suppress advisory/modal dialogs for the whole automation session. Project
+        # is single-threaded over one COM worker; a modal prompt (Planning Wizard on
+        # a constraint conflict, an overwrite/"save changes?" alert, the cut/paste
+        # confirmation) blocks that thread and therefore every tool until the 300s
+        # timeout fires. An automation server must never wait on a human, so we turn
+        # these off once here rather than per-tool. (Reset when Project restarts.)
+        try:
+            self._app.Alerts(False)
+        except Exception:
+            pass
         return self._app
 
     # ---- callable from any thread -------------------------------------------

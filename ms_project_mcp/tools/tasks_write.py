@@ -370,24 +370,15 @@ def register(mcp) -> None:
                 app.ViewApply("&Gantt Chart")
             except Exception:
                 pass
-            # Suppress modal cut/paste confirmation dialogs that would otherwise
-            # block the single COM worker thread until the 300s timeout fires.
-            try:
-                app.Alerts(False)
-            except Exception:
-                pass
-            try:
-                app.SelectRow(src_row, False)
-                app.EditCut()
-                # After cut, rows above the destination shift up by one; paste inserts
-                # above the selected row, so target the row after `after_task_id`.
-                app.SelectRow(after_task_id + 1, False)
-                app.EditPaste()
-            finally:
-                try:
-                    app.Alerts(True)
-                except Exception:
-                    pass
+            # Advisory/confirmation dialogs (incl. the cut/paste prompt) are
+            # suppressed globally in the COM layer (connection._ensure_app), so the
+            # single worker thread can't wedge here.
+            app.SelectRow(src_row, False)
+            app.EditCut()
+            # After cut, rows above the destination shift up by one; paste inserts
+            # above the selected row, so target the row after `after_task_id`.
+            app.SelectRow(after_task_id + 1, False)
+            app.EditPaste()
             return {"moved": True, "after_task_id": after_task_id}
         return with_project(job, create=True)
 
@@ -404,22 +395,11 @@ def register(mcp) -> None:
                 app.ViewApply("&Gantt Chart")
             except Exception:
                 pass
-            # Suppress modal paste confirmation dialogs (see move_task) so they
-            # cannot wedge the COM worker thread.
-            try:
-                app.Alerts(False)
-            except Exception:
-                pass
-            try:
-                app.SelectRow(src_row, False, max(0, int(subtree_rows)))
-                app.EditCopy()
-                app.SelectRow(after_task_id + 1, False)
-                app.EditPaste()
-            finally:
-                try:
-                    app.Alerts(True)
-                except Exception:
-                    pass
+            # Confirmation dialogs are suppressed globally (connection._ensure_app).
+            app.SelectRow(src_row, False, max(0, int(subtree_rows)))
+            app.EditCopy()
+            app.SelectRow(after_task_id + 1, False)
+            app.EditPaste()
             return {"copied": True, "after_task_id": after_task_id, "rows": 1 + max(0, int(subtree_rows))}
         return with_project(job, create=True)
 
