@@ -124,21 +124,37 @@ def register(mcp) -> None:
 
     @mcp.tool()
     def save_project_as(path: str, format: str = "mpp") -> dict:
-        """Save the active project to a new path.
+        """Save/export the active project to a new path.
 
         Args:
             path: Absolute destination path.
-            format: One of mpp, xml (MSPDI), csv, txt, xlsx, pdf. Default mpp.
+            format: mpp (default) or mpt — native save; pdf or xps — document export.
+                For CSV use the export_csv tool. xls/xlsx/txt/xml are NOT supported
+                via automation on modern Project (they require the interactive
+                Export Wizard / are not exposed over COM) and are refused here.
         """
         def job(app, proj):
             fmt = (format or "mpp").lower()
-            format_id = C.FORMAT_ID.get(fmt)
-            if format_id is None:
+            if fmt in C.FILE_FORMAT:
+                # FileSaveAs(Name, Format): Format is the integer PjFileFormat enum.
+                app.FileSaveAs(path, C.FILE_FORMAT[fmt])
+                return {"saved_as": path, "format": fmt}
+            if fmt in C.DOC_EXPORT:
+                # PDF/XPS go through DocumentExport, not FileSaveAs.
+                app.DocumentExport(path, C.DOC_EXPORT[fmt])
+                return {"exported": path, "format": fmt}
+            if fmt == "csv":
                 raise ProjectError(
-                    f"Unsupported format {format!r}. Use one of: {', '.join(sorted(C.FORMAT_ID))}."
+                    "CSV via FileSaveAs needs an interactive export map (the Export "
+                    "Wizard, which would block automation). Use the export_csv tool."
                 )
-            app.FileSaveAs(path, MISSING, format_id)
-            return {"saved_as": path, "format": fmt}
+            supported = ", ".join(sorted(list(C.FILE_FORMAT) + list(C.DOC_EXPORT)))
+            raise ProjectError(
+                f"Format {format!r} is not supported via COM automation on this "
+                f"Project version (xls/xlsx/txt require the Export Wizard; xml/MSPDI "
+                f"is not exposed). Supported: {supported}. For tabular data use "
+                f"export_csv; for a full snapshot use snapshot_to_json."
+            )
         return with_project(job, create=False)
 
     @mcp.tool()

@@ -23,11 +23,18 @@ for m in server._MODULES:
     m.register(FakeMCP(m.__name__.split(".")[-1]))
 
 called, results = set(), []
-def call(t, **kw):
+def call(t, expect_error=False, **kw):
     called.add(t)
     try:
-        out = TOOLS[t](**kw); results.append((t, True, "")); return out
+        out = TOOLS[t](**kw)
+        if expect_error:  # tool was supposed to refuse (e.g. unsupported export)
+            results.append((t, False, "expected a clean error but it succeeded"))
+            print(f"  !! {t}: expected an error, got success")
+            return out
+        results.append((t, True, "")); return out
     except Exception as exc:
+        if expect_error:   # a clean refusal IS the correct behavior
+            results.append((t, True, "")); return None
         results.append((t, False, f"{type(exc).__name__}: {exc}"))
         print(f"  !! FAIL {t}: {exc}")
         return None
@@ -285,7 +292,9 @@ print("=== data io ===")
 call("snapshot_to_json", path=SNAP)
 call("snapshot_diff", baseline_json_path=SNAP)
 call("export_csv", path=os.path.join(OUTDIR, "tasks.csv"))
-call("export_xml", path=os.path.join(OUTDIR, "plan.xml"))
+call("export_xml", path=os.path.join(OUTDIR, "plan.xml"), expect_error=True)  # MSPDI not COM-exposed
+call("save_project_as", path=os.path.join(OUTDIR, "plan.pdf"), format="pdf")   # DocumentExport
+call("save_project_as", path=os.path.join(OUTDIR, "plan.xlsx"), format="xlsx", expect_error=True)  # would hang Export Wizard
 
 # =================================================================
 # M. UTILITY

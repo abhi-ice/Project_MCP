@@ -7,8 +7,7 @@ from __future__ import annotations
 import csv
 import json
 
-from ..com import constants as C
-from ..com.connection import MISSING, with_project
+from ..com.connection import ProjectError, with_project
 from ..com.helpers import (
     _g, hours_per_day, iso, iter_resources, iter_tasks, serialize_resource, serialize_task,
 )
@@ -100,8 +99,18 @@ def register(mcp) -> None:
 
     @mcp.tool()
     def export_xml(path: str) -> dict:
-        """Export the active project to Microsoft Project XML (MSPDI) at the given path."""
+        """Export the active project to Microsoft Project XML (MSPDI).
+
+        NOTE: modern Microsoft Project (verified 16.0) does not expose MSPDI XML
+        export over COM — FileSaveAs ignores the XML FormatID and silently writes a
+        native .mpp. Rather than produce a mislabeled file, this reports the
+        limitation and points to working alternatives.
+        """
         def job(app, proj):
-            app.FileSaveAs(path, MISSING, C.FORMAT_ID["xml"])
-            return {"exported": path, "format": "xml"}
+            raise ProjectError(
+                "MSPDI XML export is not available via COM automation on this "
+                "Microsoft Project version. Use snapshot_to_json for a full "
+                "machine-readable snapshot, export_csv for tabular task data, or "
+                "save_project_as(format='pdf') for a shareable document."
+            )
         return with_project(job, create=False)

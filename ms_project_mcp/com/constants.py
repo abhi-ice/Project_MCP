@@ -134,19 +134,23 @@ class FileFormat:           # enum PjFileFormat (numeric `Format` arg)
     XLSB = 21
 
 
-# Preferred: pass FormatID (a string) to FileSaveAs. Keys are the friendly
-# extensions we accept from callers.
-FORMAT_ID = {
-    "mpp": "MSProject.mpp",
-    "mpt": "MSProject.mpt",
-    "xml": "MSProject.xml",     # MSPDI
-    "mspdi": "MSProject.xml",
-    "csv": "MSProject.csv",
-    "txt": "MSProject.txt",
-    "xls": "MSProject.xls",
-    "xlsx": "MSProject.xls",
-    "pdf": "MSProject.pdf",
-    "xpf": "MSProject.xpf",
+# FileSaveAs(Name, Format) — Format is the integer PjFileFormat enum (NOT the
+# string ProgID, which modern Project ignores -> it would silently save native
+# .mpp). Verified on MS Project 16.0: only these native formats save correctly
+# via FileSaveAs. CSV/TXT/XLS need an interactive export Map and XLSX pops the
+# Export Wizard (a modal that Alerts(False) does NOT suppress and would hang the
+# COM worker); MSPDI XML is not exposed via FileSaveAs here. So we deliberately
+# do NOT map those — save_project_as refuses them with a clean error instead.
+FILE_FORMAT = {
+    "mpp": 0,    # pjMPP
+    "mpt": 11,   # pjMPT
+}
+
+# Application.DocumentExport(Filename, FileType) with PjDocExportType — the
+# correct, non-blocking way to produce PDF/XPS (FileSaveAs has no PDF format).
+DOC_EXPORT = {
+    "pdf": 0,    # pjPDF
+    "xps": 1,    # pjXPS
 }
 
 
