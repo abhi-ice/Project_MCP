@@ -71,3 +71,34 @@ def test_dependency_link(blank_project):
         return b.TaskDependencies.Count
 
     assert with_project(setup) >= 1
+
+
+def test_move_task_no_hang():
+    """Regression: move_task uses cut/paste which can pop a modal confirmation and
+    wedge the COM worker. With Alerts suppressed it must complete (and reorder)."""
+    from ms_project_mcp.tools import tasks_write, tasks_read, session
+
+    tools = {}
+
+    class _Cap:
+        def tool(self, *a, **k):
+            def deco(fn):
+                tools[fn.__name__] = fn
+                return fn
+            return deco
+
+    cap = _Cap()
+    session.register(cap)
+    tasks_read.register(cap)
+    tasks_write.register(cap)
+
+    tools["new_project"](title="MoveHangTest")
+    try:
+        for n in ("One", "Two", "Three"):
+            tools["add_task"](name=n, duration="1d")
+        # Move row 1 ("One") to after row 3 -> last row should be "One".
+        tools["move_task"](after_task_id=3, task_id=1)
+        names = [t["name"] for t in tools["get_tasks"]()["tasks"]]
+        assert names[-1] == "One", names
+    finally:
+        tools["close_project"](save=False)

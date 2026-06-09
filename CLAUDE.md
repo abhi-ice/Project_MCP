@@ -2,6 +2,8 @@
 
 > **Purpose:** Hand this project off to a fresh Claude Code session that will **pull this repo and TEST it** on a Windows machine that has Microsoft Project installed. It captures what the server is, how it's built, exactly how to test it, what to watch for, and the full history of what was already reviewed/fixed so you don't redo it.
 
+> **✅ LIVE-VALIDATED 2026-06-08** on **MS Project 16.0 / Python 3.13 / pywin32 312**. All **110 tools were exercised against running Project** and pass. `pytest tests/` = 5 passed. The smoke test passes. One real bug was found and fixed: `move_task`/`copy_task_structure` hung the COM worker on a modal cut/paste dialog — now wrapped in `app.Alerts(False)` suppression so they complete (see §6/§8). Everything in §7 was re-confirmed as a non-issue. There are no known outstanding bugs.
+
 ---
 
 ## 0. TL;DR for the new session — what I need you to do
@@ -112,7 +114,7 @@ README.md              # fuller setup/registration/troubleshooting docs
 
 ## 6. Verify-on-first-run (the ONLY things static review couldn't settle)
 
-These COM calls vary by Project version / depend on the active view. If one errors, it's the likely culprit and an isolated fix:
+These COM calls vary by Project version / depend on the active view. If one errors, it's the likely culprit and an isolated fix. **All rows below were live-confirmed working on MS Project 16.0 (2026-06-08)** — `new_project`, `close_project`, `switch_project` (by Name/index — note `new_project(title=...)` sets Title, not Name), `get_project_info` start/finish, `assign_resource`, `set_working_hours`, calendar exceptions all pass. The only one that needed a code change was `move_task`/`copy_task_structure` (below). Re-verify only if you're on a different Project version.
 
 | Symptom | Where | Likely fix |
 |---|---|---|
@@ -123,7 +125,7 @@ These COM calls vary by Project version / depend on the active view. If one erro
 | `assign_resource` attaches wrong resource | `resources.py` | confirm `Assignments.Add` wants row `.ID` (used, per VBA docs) vs `UniqueID` |
 | `set_working_hours`/exception times rejected | `calendars.py` | convert `"8:00 AM"` shift strings to a `datetime` |
 | calendar exception saves as working not off | `calendars.set_calendar_exception` | confirm a shift-less exception defaults non-working |
-| `move_task`/`copy_task_structure` paste wrong row | `tasks_write` | view-position based, fragile **by design** — prefer delete+re-add |
+| `move_task`/`copy_task_structure` paste wrong row | `tasks_write` | view-position based, fragile **by design** — prefer delete+re-add. **(Live 2026-06-08: reorder/copy verified correct; the modal-dialog hang is fixed via `app.Alerts(False)`.)** |
 | intermittent `RPC_E_WRONG_THREAD` | `com/connection.py` | the STA worker should prevent this — report if seen |
 
 ---
@@ -146,7 +148,9 @@ Built in 5 phases (session/reads → task engine → resources/calendars → sch
 3. **Pass 3 (production failure modes):** added the COM timeout, import-crash guards (`MISSING` via getattr, env-parse), per-item bulk isolation, and 1000-row caps on `get_tasks`/`filter_tasks`.
 4. **Pass 4 (3 parallel review agents + triage):** fixed `get_timephased_data` None-crash, partial-write isolation in `set_resource_rate_table`/`update_custom_fields`, `add_recurring_task` orphan-on-bad-date, empty-string-date→None, `parse_dt` error message, **NaN/Inf stripping in `_g`** (invalid-JSON guard), and extended row caps to the tracking tables + `validate_schedule`.
 
-Every change compiles clean (`python -m compileall ms_project_mcp`). The findings converged (systemic → narrow edge cases), which is the signal that the obvious breakers are gone — but only a live run proves it.
+5. **Pass 5 — LIVE validation (2026-06-08, MS Project 16.0 / Python 3.13 / pywin32 312):** pulled the repo onto a real Project box and exercised **all 110 tools end-to-end** against running Project via a capture harness (build a plan → tasks/deps/resources/calendars/scheduling/tracking/custom-fields/IO/filters → session teardown). Result: **108/110 passed first try.** The two apparent failures were *harness* mistakes, not server bugs (`switch_project` was given the project *Title* instead of its *Name*; `rename_custom_field` hit Project's own "name already in use" on a name a prior run had used) — both re-confirmed working. The **one real bug**: `move_task`/`copy_task_structure` use Edit cut/paste, which pops a modal confirmation dialog that wedged the single COM worker thread until the 300s timeout. **Fix:** wrap the cut/paste in `app.Alerts(False)` … `finally: app.Alerts(True)` so no dialog can block; verified the reorder and copy now complete and land correctly. Added `tests/test_smoke.py::test_move_task_no_hang` regression and `scripts/list_tools.py` (registration self-check, no Project needed).
+
+Every change compiles clean (`python -m compileall ms_project_mcp`). The findings converged (systemic → narrow edge cases → one live dialog-hang), and the live run now proves the server works against real Project.
 
 ---
 
