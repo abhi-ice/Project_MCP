@@ -1,0 +1,4 @@
+# Runtime dependencies for the MS Project MCP server.
+# Install on the WINDOWS machine that has Microsoft Project installed.
+mcp>=1.2.0
+pywin32>=306

@@ -1,0 +1,21 @@
+[project]
+name = "ms-project-mcp"
+version = "0.1.0"
+description = "Model Context Protocol server exposing Microsoft Project (desktop) via COM automation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "mcp>=1.2.0",
+    "pywin32>=306",
+]
+
+[project.scripts]
+ms-project-mcp = "ms_project_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ms_project_mcp"]

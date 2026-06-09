@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# win32com generated type-library cache (created at runtime on the Project box)
+gen_py/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Claude Code local-only settings (keep machine-specific config out of the repo)
+.claude/settings.local.json
+
+# Local MS Project test files / exports
+*.mpp
+*.xml
+!**/sample*.xml
+*.csv
