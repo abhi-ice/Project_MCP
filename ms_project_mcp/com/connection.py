@@ -30,8 +30,26 @@ from typing import Any, Callable
 
 import pythoncom
 import win32com.client
+from win32com.client import gencache
 
 PROGID = "MSProject.Application"
+
+
+def _typed(disp):
+    """Upgrade a COM object to its early-bound (makepy/gencache) wrapper.
+
+    Late binding resolves every property NAME to a DISPID via a separate
+    GetIDsOfNames round-trip the first time it's seen on an object — roughly
+    doubling the cross-process calls in a property-heavy loop like serialize_task
+    (≈45 reads × hundreds of tasks). Early binding uses DISPIDs baked into the
+    generated type library, so each read is a single Invoke. This makes large-plan
+    reads dramatically faster. Falls back to the original (dynamic) object if the
+    type library can't be generated.
+    """
+    try:
+        return gencache.EnsureDispatch(disp)
+    except Exception:
+        return disp
 
 # Sentinel for an omitted optional COM argument. win32com late binding takes
 # positional arguments only (keyword args are unreliable without a generated type
@@ -103,13 +121,13 @@ class _ComWorker:
 
         # Prefer attaching to an instance the user already has open.
         try:
-            self._app = win32com.client.GetActiveObject(PROGID)
+            self._app = _typed(win32com.client.GetActiveObject(PROGID))
         except Exception:
             self._app = None
 
         if self._app is None and create:
             try:
-                self._app = win32com.client.Dispatch(PROGID)
+                self._app = _typed(win32com.client.Dispatch(PROGID))
             except Exception as exc:
                 raise ProjectError(
                     f"Could not connect to or start Microsoft Project via COM "

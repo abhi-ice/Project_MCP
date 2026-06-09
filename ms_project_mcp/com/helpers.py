@@ -140,74 +140,79 @@ def cap_rows(rows: list, limit: int | None) -> tuple:
     return rows, False
 
 
-def serialize_task(task: Any, hpd: float = 8.0) -> dict | None:
+def serialize_task(task: Any, hpd: float = 8.0, detail: bool = True) -> dict | None:
     """Flatten a Project Task COM object into a JSON-friendly dict.
 
     Reads are done via named properties (stable, no field-constant lookups).
     Durations are reported both raw (minutes, as Project stores them) and as
     days/hours for readability.
+
+    Each property read is a cross-process COM round-trip, so this is the hot path
+    for large plans. ``detail=False`` returns only the ~13 most useful columns
+    (≈1/3 the reads) — a fast mode for listing very large schedules.
     """
     if task is None:
         return None
 
-    ctype = _g(task, "ConstraintType")
-    ttype = _g(task, "Type")
-
-    return {
+    dur = _g(task, "Duration")
+    core = {
         # identity / hierarchy
         "unique_id": _g(task, "UniqueID"),
         "id": _g(task, "ID"),
         "name": _g(task, "Name"),
-        "wbs": _g(task, "WBS"),
         "outline_level": _g(task, "OutlineLevel"),
-        "outline_number": _g(task, "OutlineNumber"),
         "summary": bool(_g(task, "Summary", False)),
         "milestone": bool(_g(task, "Milestone", False)),
         "active": bool(_g(task, "Active", True)),
         "manual": _g(task, "Manual"),
         # progress
         "percent_complete": _g(task, "PercentComplete"),
-        "percent_work_complete": _g(task, "PercentWorkComplete"),
         # dates
         "start": iso(_g(task, "Start")),
         "finish": iso(_g(task, "Finish")),
+        # duration / criticality
+        "duration_days": minutes_to_days(dur, hpd),
+        "critical": bool(_g(task, "Critical", False)),
+    }
+    if not detail:
+        return core
+
+    ctype = _g(task, "ConstraintType")
+    ttype = _g(task, "Type")
+    work = _g(task, "Work")
+    core.update({
+        "wbs": _g(task, "WBS"),
+        "outline_number": _g(task, "OutlineNumber"),
+        "percent_work_complete": _g(task, "PercentWorkComplete"),
         "actual_start": iso(_g(task, "ActualStart")),
         "actual_finish": iso(_g(task, "ActualFinish")),
         "baseline_start": iso(_g(task, "BaselineStart")),
         "baseline_finish": iso(_g(task, "BaselineFinish")),
         "deadline": iso(_g(task, "Deadline")),
-        # constraint
         "constraint_type": ctype,
         "constraint_name": C.CONSTRAINT_NAMES.get(ctype),
         "constraint_date": iso(_g(task, "ConstraintDate")),
-        # duration / work (raw minutes + friendly units)
-        "duration_minutes": _g(task, "Duration"),
-        "duration_days": minutes_to_days(_g(task, "Duration"), hpd),
+        "duration_minutes": dur,
         "remaining_duration_days": minutes_to_days(_g(task, "RemainingDuration"), hpd),
-        "work_minutes": _g(task, "Work"),
-        "work_hours": minutes_to_hours(_g(task, "Work")),
+        "work_minutes": work,
+        "work_hours": minutes_to_hours(work),
         "actual_work_hours": minutes_to_hours(_g(task, "ActualWork")),
-        # cost
         "cost": _g(task, "Cost"),
         "fixed_cost": _g(task, "FixedCost"),
         "baseline_cost": _g(task, "BaselineCost"),
-        # slack / criticality
         "total_slack_days": minutes_to_days(_g(task, "TotalSlack"), hpd),
         "free_slack_days": minutes_to_days(_g(task, "FreeSlack"), hpd),
-        "critical": bool(_g(task, "Critical", False)),
-        # classification
         "priority": _g(task, "Priority"),
         "type": ttype,
         "type_name": C.TASK_TYPE_NAMES.get(ttype),
-        # relationships (Project's compact string form, e.g. "3FS+2 days")
         "predecessors": _g(task, "Predecessors"),
         "successors": _g(task, "Successors"),
         "resource_names": _g(task, "ResourceNames"),
-        # extras
         "notes": _g(task, "Notes"),
         "hyperlink": _g(task, "Hyperlink"),
         "hyperlink_address": _g(task, "HyperlinkAddress"),
-    }
+    })
+    return core
 
 
 def serialize_resource(res: Any) -> dict | None:

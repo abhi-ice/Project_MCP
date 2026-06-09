@@ -161,6 +161,8 @@ Built in 5 phases (session/reads → task engine → resources/calendars → sch
 
 **Net export support (Project 16.0):** ✅ mpp, mpt, **pdf/xps** (DocumentExport), CSV (via `export_csv`), JSON (via `snapshot_to_json`). ❌ xls/xlsx/txt (Export Wizard — would block), MSPDI xml (not exposed over COM).
 
+8. **Pass 8 — read performance (2026-06-08):** large-plan reads were slow because every property access on a *late-bound* COM object costs a `GetIDsOfNames` round-trip plus an `Invoke` (`serialize_task` ≈45 reads/task ⇒ ~0.22s/task ⇒ ~35s for 160 tasks). **Fixes:** (a) `com/connection._typed()` now wraps the app via `gencache.EnsureDispatch` (**early binding** — DISPIDs baked in from the type library, one Invoke per read, child objects inherit it), with a fallback to dynamic if makepy can't generate; (b) `serialize_task` reads `Duration`/`Work` once each and gained a `detail=False` lean mode (~13 core columns); (c) `get_tasks` exposes `detail` (default true). Measured on 160 tasks: `get_tasks` 35s→**8.3s** (4.2×; **3.3s** lean, 10.6×), `get_cost_summary` 17s→2.3s, `get_critical_path` 4.3s→1.8s. A 1000-task plan ≈52s full / ≈21s lean — safely under the 300s cap. Early binding verified to cause no regression (`full_suite.py` still 176/0, pytest 5/5).
+
 Every change compiles clean (`python -m compileall ms_project_mcp`). The findings converged (systemic → narrow edge cases → dialog hangs → export-path correctness), and the live runs now prove the server works against real Project, including a heavy 160-task plan.
 
 ---

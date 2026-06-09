@@ -21,7 +21,7 @@ def register(mcp) -> None:
     @mcp.tool()
     def get_tasks(name_contains: str | None = None, only_critical: bool = False,
                   include_summaries: bool = True, include_inactive: bool = True,
-                  limit: int | None = None) -> dict:
+                  limit: int | None = None, detail: bool = True) -> dict:
         """List tasks in the active project, with optional filters.
 
         Args:
@@ -30,6 +30,9 @@ def register(mcp) -> None:
             include_summaries: Include summary/rollup rows (default true).
             include_inactive: Include inactive tasks (default true).
             limit: Maximum number of tasks to return.
+            detail: Full field set per task (default). Set false for a fast, lean
+                listing (~13 core columns, roughly 3x fewer COM reads) — use on very
+                large plans where the full read is slow.
         """
         def job(app, proj):
             hpd = hours_per_day(proj)
@@ -50,7 +53,7 @@ def register(mcp) -> None:
                     if len(out) >= cap:
                         truncated = True
                         break
-                    out.append(serialize_task(t, hpd))
+                    out.append(serialize_task(t, hpd, detail=detail))
                 except Exception:
                     continue
             result = {"count": len(out), "tasks": out}
